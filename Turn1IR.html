@@ -153,15 +153,41 @@ const ENGLISH_SOUNDS = [
 let keys = {};
 let mouseImage;
 
-document.addEventListener('keydown', function(e) {
+// Modify these event listeners to use named functions
+function keydownHandler(e) {
     keys[e.key] = true;
     if (e.key === 'Escape') toggleMenu();
-});
+}
 
-document.addEventListener('keyup', function(e) {
+function keyupHandler(e) {
     keys[e.key] = false;
-});
+}
 
+document.addEventListener('keydown', keydownHandler);
+document.addEventListener('keyup', keyupHandler);
+
+
+function cleanupGame() {
+    // Clear all intervals
+    clearInterval(mouseSpawnInterval);
+
+    // Remove all mouse elements
+    document.querySelectorAll('.mouse').forEach(mouse => mouse.remove());
+
+    // Clear any ongoing animations
+    cancelAnimationFrame(animateLoop);
+
+    // Reset game variables
+    score = 0;
+    level = 1;
+    gameSpeed = 1000;
+    gamePaused = true;
+    activeMouseCount = 0;
+
+    // Remove event listeners
+    document.removeEventListener('keydown', keydownHandler);
+    document.removeEventListener('keyup', keyupHandler);
+}
 function preloadImages() {
     return new Promise((resolve, reject) => {
         mouseImage = new Image();
@@ -350,6 +376,7 @@ function restartMouseSpawning() {
 }
 
 function exitGame() {
+    cleanupGame();
     document.body.innerHTML = '<div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background-color: black; color: white; font-size: 2em; text-align: center;"><div>ゲームを終了しました。ありがとうございました！</div><div>Game Over. Thank you for playing!</div></div>';
 }
 
