@@ -1,1 +1,374 @@
-T1IR
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ネコとネズミ / Cat and Mouse</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Noto Sans JP', 'Arial', sans-serif;
+        }
+        #gameArea {
+            width: 100vw;
+            height: 100vh;
+            background: url('https://i.postimg.cc/DZXrC5dr/vecteezy-wooden-parquet-floor-texture-background-vector-illustration-8545428.jpg') repeat;
+            position: relative;
+        }
+        #cat {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            width: 100px;
+            transform: translateX(-50%);
+        }
+        .mouse {
+            position: absolute;
+            width: 50px;
+        }
+        #scoreBoard {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+        #levelUp {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3em;
+            color: #ff4500;
+            display: none;
+            z-index: 1001;
+            text-shadow: 2px 2px 4px #000;
+            text-align: center;
+        }
+        #menu {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 1002;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+        .poisoned {
+            filter: drop-shadow(0 0 10px red) brightness(2) contrast(1.5) hue-rotate(-45deg);
+            animation: extremeGlow 0.6s ease-in-out infinite alternate;
+        }
+        @keyframes extremeGlow {
+            from {
+                filter: drop-shadow(0 0 10px red) brightness(2) contrast(1.5) hue-rotate(-45deg);
+            }
+            to {
+                filter: drop-shadow(0 0 20px red) brightness(3) contrast(2) hue-rotate(-45deg);
+            }
+        }
+        .bilingual {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .japanese {
+            margin-right: 10px;
+        }
+        #loadingScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: white;
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+<div id="loadingScreen">Loading...</div>
+<div id="gameArea">
+    <img id="cat" src="https://i.postimg.cc/wTyZckLV/noun-cat-6926947.png" alt="ネコ / Cat">
+    <div id="scoreBoard">
+        <div class="bilingual">
+            <span class="japanese">スコア:</span>
+            <span>Score: <span id="score">0</span></span>
+        </div>
+        <div class="bilingual">
+            <span class="japanese">レベル:</span>
+            <span>Level: <span id="level">1</span></span>
+        </div>
+    </div>
+    <div id="levelUp">
+        <div class="japanese">レベルアップ！</div>
+        <div>Level Up!</div>
+    </div>
+    <div id="menu">
+        <h2 class="bilingual">
+            <span class="japanese">ゲームメニュー</span>
+            <span>Game Menu</span>
+        </h2>
+        <button class="btn btn-primary" onclick="resumeGame()">
+            <span class="japanese">再開</span> / Resume
+        </button>
+        <button class="btn btn-danger" onclick="exitGame()">
+            <span class="japanese">終了</span> / Exit
+        </button>
+    </div>
+</div>
+
+<script>
+let gameArea = document.getElementById('gameArea');
+let cat = document.getElementById('cat');
+let score = 0, level = 1, gameSpeed = 1000, gamePaused = false;
+let scoreElement = document.getElementById('score');
+let levelElement = document.getElementById('level');
+let levelUpElement = document.getElementById('levelUp');
+let mouseSpawnInterval;
+let catSpeed = 10;
+let activeMouseCount = 0;
+const MAX_ACTIVE_MICE = 10;
+
+const JAPANESE_SOUNDS = [
+    'にゃー！', 'チュー！', 'ガブッ！', 'ニャンニャン！', 'ピーッ！'
+];
+
+const ENGLISH_SOUNDS = [
+    'Meow!', 'Squeak!', 'Chomp!', 'Purr purr!', 'Eek!'
+];
+
+let keys = {};
+let mouseImage;
+
+document.addEventListener('keydown', function(e) {
+    keys[e.key] = true;
+    if (e.key === 'Escape') toggleMenu();
+});
+
+document.addEventListener('keyup', function(e) {
+    keys[e.key] = false;
+});
+
+function preloadImages() {
+    return new Promise((resolve, reject) => {
+        mouseImage = new Image();
+        mouseImage.onload = resolve;
+        mouseImage.onerror = reject;
+        mouseImage.src = 'https://i.postimg.cc/mDGB0gWP/noun-mice-3386496.png';
+    });
+}
+
+function startGame() {
+    document.getElementById('loadingScreen').style.display = 'none';
+    restartMouseSpawning();
+    animateLoop();
+}
+
+preloadImages()
+    .then(startGame)
+    .catch(error => {
+        console.error('Failed to load images:', error);
+        alert('Failed to load game resources. Please refresh the page.');
+    });
+
+function animateLoop() {
+    if (!gamePaused) {
+        if (keys['ArrowLeft']) moveCat(-1);
+        if (keys['ArrowRight']) moveCat(1);
+    }
+    requestAnimationFrame(animateLoop);
+}
+
+function toggleMenu() {
+    let menu = document.getElementById('menu');
+    if (menu.style.display === 'block') {
+        resumeGame();
+    } else {
+        menu.style.display = 'block';
+        gamePaused = true;
+        clearInterval(mouseSpawnInterval);
+    }
+}
+
+function moveCat(direction) {
+    let currentPosition = parseFloat(cat.style.left) || (gameArea.offsetWidth / 2);
+    let newPosition = currentPosition + (direction * catSpeed);
+    cat.style.left = Math.max(0, Math.min(gameArea.offsetWidth - cat.offsetWidth, newPosition)) + 'px';
+}
+function createMouse() {
+    if (gamePaused || activeMouseCount >= MAX_ACTIVE_MICE) return;
+
+    let mouse = document.createElement('img');
+    mouse.src = mouseImage.src;
+    mouse.classList.add('mouse');
+    let isPoisoned = Math.random() < 0.05; // 5% chance of being poisoned
+    if (isPoisoned) mouse.classList.add('poisoned');
+
+    let startX = Math.random() * (gameArea.offsetWidth - 50);
+    mouse.style.left = startX + 'px';
+    mouse.style.top = '-50px';
+    mouse.style.transform = 'rotate(180deg)';
+
+    gameArea.appendChild(mouse);
+    activeMouseCount++;
+
+    let speed = 1 + (level * 0.5);
+    let lastTimestamp = 0;
+    let direction = { x: 0, y: 1 }; // Start moving downward
+    let lastDirectionChange = 0;
+
+    function moveMouse(timestamp) {
+        if (gamePaused) {
+            requestAnimationFrame(moveMouse);
+            return;
+        }
+
+        if (!lastTimestamp) lastTimestamp = timestamp;
+        const deltaTime = timestamp - lastTimestamp;
+        lastTimestamp = timestamp;
+
+        // Change direction randomly
+        if (timestamp - lastDirectionChange > 1000) { // Change direction every 1 second
+            changeMiceDirection(mouse, direction);
+            lastDirectionChange = timestamp;
+        }
+
+        let posX = parseFloat(mouse.style.left) || startX;
+        let posY = parseFloat(mouse.style.top) || -50;
+
+        posX += direction.x * speed * (deltaTime / 16);
+        posY += direction.y * speed * (deltaTime / 16);
+
+        // Keep the mouse within the game area
+        posX = Math.max(0, Math.min(gameArea.offsetWidth - mouse.offsetWidth, posX));
+        posY = Math.max(-50, Math.min(gameArea.offsetHeight - mouse.offsetHeight, posY));
+
+        mouse.style.left = posX + 'px';
+        mouse.style.top = posY + 'px';
+
+        if (posY >= gameArea.offsetHeight - mouse.offsetHeight) {
+            removeMouse(mouse);
+        } else if (isCollision(cat, mouse)) {
+            removeMouse(mouse);
+            if (isPoisoned) {
+                playSound('ピーッ！', 'Eek!');
+                alert('ゲームオーバー！毒ネズミを捕まえてしまいました。\nGame Over! You caught a poisoned mouse.');
+                location.reload();
+            } else {
+                playRandomSound();
+                updateScore(1);
+            }
+        } else {
+            requestAnimationFrame(moveMouse);
+        }
+    }
+
+    requestAnimationFrame(moveMouse);
+}
+
+function changeMiceDirection(mouse, direction) {
+    // Randomly choose a new direction
+    let newDirection = Math.floor(Math.random() * 4);
+    switch(newDirection) {
+        case 0: // Up
+            direction.x = 0;
+            direction.y = -1;
+            mouse.style.transform = 'rotate(0deg)';
+            break;
+        case 1: // Right
+            direction.x = 1;
+            direction.y = 0;
+            mouse.style.transform = 'rotate(90deg)';
+            break;
+        case 2: // Down
+            direction.x = 0;
+            direction.y = 1;
+            mouse.style.transform = 'rotate(180deg)';
+            break;
+        case 3: // Left
+            direction.x = -1;
+            direction.y = 0;
+            mouse.style.transform = 'rotate(270deg)';
+            break;
+    }
+}
+
+function removeMouse(mouse) {
+    if (mouse && mouse.parentNode) {
+        mouse.parentNode.removeChild(mouse);
+        activeMouseCount--;
+    }
+}
+
+function isCollision(a, b) {
+    let aRect = a.getBoundingClientRect();
+    let bRect = b.getBoundingClientRect();
+    return !(aRect.bottom < bRect.top || aRect.top > bRect.bottom || 
+             aRect.right < bRect.left || aRect.left > bRect.right);
+}
+
+function updateScore(points) {
+    score += points;
+    scoreElement.textContent = score;
+    checkLevelUp();
+}
+
+function checkLevelUp() {
+    if (score >= level * 5) {
+        level++;
+        levelElement.textContent = level;
+        levelUpElement.style.display = 'block';
+        setTimeout(() => levelUpElement.style.display = 'none', 2000);
+        gameSpeed = Math.max(200, 1000 - (level * 50));
+        restartMouseSpawning();
+        playSound('レベルアップ！', 'Level Up!');
+    }
+}
+
+function resumeGame() {
+    document.getElementById('menu').style.display = 'none';
+    gamePaused = false;
+    restartMouseSpawning();
+}
+
+function restartMouseSpawning() {
+    clearInterval(mouseSpawnInterval);
+    mouseSpawnInterval = setInterval(createMouse, gameSpeed);
+}
+
+function exitGame() {
+    document.body.innerHTML = '<div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background-color: black; color: white; font-size: 2em; text-align: center;"><div>ゲームを終了しました。ありがとうございました！</div><div>Game Over. Thank you for playing!</div></div>';
+}
+
+function playSound(japaneseText, englishText) {
+    let utterance = new SpeechSynthesisUtterance(japaneseText);
+    utterance.lang = 'ja-JP';
+    speechSynthesis.speak(utterance);
+    
+    setTimeout(() => {
+        let englishUtterance = new SpeechSynthesisUtterance(englishText);
+        englishUtterance.lang = 'en-US';
+        speechSynthesis.speak(englishUtterance);
+    }, 1000);
+}
+
+function playRandomSound() {
+    let index = Math.floor(Math.random() * JAPANESE_SOUNDS.length);
+    playSound(JAPANESE_SOUNDS[index], ENGLISH_SOUNDS[index]);
+}
+</script>
+</body>
+</html>

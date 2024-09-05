@@ -1,1 +1,215 @@
-T1MA
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cat and Mouse Retro Game</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f4f4;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+        }
+        #gameArea {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: url('https://i.postimg.cc/DZXrC5dr/vecteezy-wooden-parquet-floor-texture-background-vector-illustration-8545428.jpg') repeat;
+        }
+        #cat {
+            position: absolute;
+            bottom: 10px;
+            width: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .mouse {
+            position: absolute;
+            width: 50px;
+            transition: all 0.5s linear;
+        }
+        #scoreBoard {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+        .japanese-text {
+            font-family: 'MS Gothic', monospace;
+        }
+        #levelUp {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3em;
+            color: #ff6347;
+            display: none;
+            text-shadow: 2px 2px 4px #000000;
+            z-index: 1001;
+        }
+        .poisoned {
+            box-shadow: 0 0 10px 5px red;
+        }
+        #menu {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border: 2px solid black;
+            z-index: 1002;
+        }
+    </style>
+</head>
+<body>
+
+<div id="gameArea">
+    <img id="cat" src="https://i.postimg.cc/wTyZckLV/noun-cat-6926947.png" alt="Cat">
+    <div id="scoreBoard">
+        <span class="japanese-text">得点: </span><span id="score">0</span><br>
+        <span class="japanese-text">レベル: </span><span id="level">1</span>
+    </div>
+    <div id="levelUp">Level Up!</div>
+    <div id="menu">
+        <button onclick="resumeGame()">Resume</button>
+        <button onclick="exitGame()">Exit</button>
+    </div>
+</div>
+
+<script>
+    const gameArea = document.getElementById('gameArea');
+    let score = 0;
+    let level = 1;
+    const levelThreshold = [10, 15, 20, 25]; // Thresholds for level up
+    let cat = document.getElementById('cat');
+    let gameLoop;
+    let mice = [];
+    const speedIncreasePerLevel = 0.5;
+
+    function createMouse() {
+        const mouse = document.createElement('img');
+        mouse.src = 'https://i.postimg.cc/mDGB0gWP/noun-mice-3386496.png';
+        mouse.className = 'mouse';
+        mouse.style.top = '0px';
+        mouse.style.left = `<INLINE_MATH>{Math.random() * (window.innerWidth - 50)}px`;
+        mouse.style.transform = 'rotate(180deg)'; // Mice face down
+        const isPoisoned = Math.random() < 0.05; // 5% chance of being poisoned
+        if (isPoisoned) mouse.classList.add('poisoned');
+        gameArea.appendChild(mouse);
+        return {element: mouse, isPoisoned: isPoisoned};
+    }
+
+    function moveMouse(mouse) {
+        let pos = 0;
+        let angle = Math.random() * 2 - 1; // Random direction change
+        let id = setInterval(frame, 10);
+        function frame() {
+            if (pos >= window.innerHeight) {
+                clearInterval(id);
+                gameArea.removeChild(mouse.element);
+                if (!mouse.isPoisoned) scoreMice(-1); // Lose score for missed mouse
+            } else {
+                pos += 5 + (level * speedIncreasePerLevel); 
+                mouse.element.style.top = pos + 'px';
+                mouse.element.style.transform = `rotate(</INLINE_MATH>{180 + angle * 10}deg)`;
+                // Random left/right movement
+                let left = parseFloat(mouse.element.style.left);
+                left += angle * 5;
+                mouse.element.style.left = (left > 0 && left < window.innerWidth - 50) ? left + 'px' : mouse.element.style.left;
+                checkCollision(mouse.element);
+            }
+        }
+    }
+
+    function checkCollision(mouse) {
+        const catRect = cat.getBoundingClientRect();
+        const mouseRect = mouse.getBoundingClientRect();
+        if (mouseRect.bottom >= catRect.top && 
+            mouseRect.right > catRect.left && 
+            mouseRect.left < catRect.right) {
+            gameArea.removeChild(mouse);
+            if (mouse.classList.contains('poisoned')) {
+                gameOver();
+            } else {
+                scoreMice(1);
+            }
+        }
+    }
+
+    function scoreMice(points) {
+        score += points;
+        if (score >= levelThreshold[level - 1] && level < levelThreshold.length) {
+            levelUp();
+        }
+        document.getElementById('score').textContent = score;
+    }
+
+    function levelUp() {
+        level++;
+        document.getElementById('level').textContent = level;
+        document.getElementById('levelUp').style.display = 'block';
+        setTimeout(() => {
+            document.getElementById('levelUp').style.display = 'none';
+        }, 2000);
+    }
+
+    function gameOver() {
+        clearInterval(gameLoop);
+        alert('Game Over! Your score: ' + score);
+        location.reload(); // Reset game
+    }
+
+    function startGame() {
+        gameLoop = setInterval(() => {
+            let mouse = createMouse();
+            mice.push(mouse);
+            moveMouse(mouse);
+        }, 1000 - (level * 100)); // Speed up mouse spawn rate per level
+    }
+
+    function moveCat(direction) {
+        let left = parseInt(window.getComputedStyle(cat).left);
+        if (direction === 'left' && left > 0) {
+            cat.style.left = (left - 10) + 'px';
+        } else if (direction === 'right' && left < window.innerWidth - 100) {
+            cat.style.left = (left + 10) + 'px';
+        }
+    }
+
+    window.addEventListener('keydown', function(event) {
+        if (event.key === 'ArrowLeft') moveCat('left');
+        else if (event.key === 'ArrowRight') moveCat('right');
+        else if (event.key === 'Escape') toggleMenu();
+    });
+
+    function toggleMenu() {
+        const menu = document.getElementById('menu');
+        if (menu.style.display === 'block') {
+            resumeGame();
+        } else {
+            menu.style.display = 'block';
+            clearInterval(gameLoop);
+        }
+    }
+
+    function resumeGame() {
+        document.getElementById('menu').style.display = 'none';
+        startGame();
+    }
+
+    function exitGame() {
+        document.body.innerHTML = ''; // Simplistic exit, turns screen black
+    }
+
+    startGame();
+</script>
+
+</body>
+</html>
