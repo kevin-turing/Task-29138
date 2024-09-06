@@ -339,7 +339,8 @@ function updateScore(points) {
 }
 
 function checkLevelUp() {
-    if (score >= level * 5) {
+    let requiredScore = 10 + (level - 1) * 5; // 10 for level 1, 15 for level 2, 20 for level 3, etc.
+    if (score >= requiredScore) {
         level++;
         levelElement.textContent = level;
         levelUpElement.style.display = 'block';
