@@ -153,7 +153,6 @@ const ENGLISH_SOUNDS = [
 let keys = {};
 let mouseImage;
 
-// Modify these event listeners to use named functions
 function keydownHandler(e) {
     keys[e.key] = true;
     if (e.key === 'Escape') toggleMenu();
@@ -166,28 +165,19 @@ function keyupHandler(e) {
 document.addEventListener('keydown', keydownHandler);
 document.addEventListener('keyup', keyupHandler);
 
-
 function cleanupGame() {
-    // Clear all intervals
     clearInterval(mouseSpawnInterval);
-
-    // Remove all mouse elements
     document.querySelectorAll('.mouse').forEach(mouse => mouse.remove());
-
-    // Clear any ongoing animations
     cancelAnimationFrame(animateLoop);
-
-    // Reset game variables
     score = 0;
     level = 1;
     gameSpeed = 1000;
     gamePaused = true;
     activeMouseCount = 0;
-
-    // Remove event listeners
     document.removeEventListener('keydown', keydownHandler);
     document.removeEventListener('keyup', keyupHandler);
 }
+
 function preloadImages() {
     return new Promise((resolve, reject) => {
         mouseImage = new Image();
@@ -234,6 +224,7 @@ function moveCat(direction) {
     let newPosition = currentPosition + (direction * catSpeed);
     cat.style.left = Math.max(0, Math.min(gameArea.offsetWidth - cat.offsetWidth, newPosition)) + 'px';
 }
+
 function createMouse() {
     if (gamePaused || activeMouseCount >= MAX_ACTIVE_MICE) return;
 
@@ -251,10 +242,11 @@ function createMouse() {
     gameArea.appendChild(mouse);
     activeMouseCount++;
 
-    let speed = 1 + (level * 0.5);
+    let speed = 2 + (level * 0.75); // Increased base speed and level multiplier
     let lastTimestamp = 0;
     let direction = { x: 0, y: 1 }; // Start moving downward
     let lastDirectionChange = 0;
+    let downwardBias = 0.6; // Bias towards moving downward
 
     function moveMouse(timestamp) {
         if (gamePaused) {
@@ -266,9 +258,9 @@ function createMouse() {
         const deltaTime = timestamp - lastTimestamp;
         lastTimestamp = timestamp;
 
-        // Change direction randomly
-        if (timestamp - lastDirectionChange > 1000) { // Change direction every 1 second
-            changeMiceDirection(mouse, direction);
+        // Change direction randomly, but less frequently
+        if (timestamp - lastDirectionChange > 1500) { // Change direction every 1.5 seconds
+            changeMiceDirection(mouse, direction, downwardBias);
             lastDirectionChange = timestamp;
         }
 
@@ -305,30 +297,24 @@ function createMouse() {
     requestAnimationFrame(moveMouse);
 }
 
-function changeMiceDirection(mouse, direction) {
-    // Randomly choose a new direction
-    let newDirection = Math.floor(Math.random() * 4);
-    switch(newDirection) {
-        case 0: // Up
-            direction.x = 0;
-            direction.y = -1;
-            mouse.style.transform = 'rotate(0deg)';
-            break;
-        case 1: // Right
-            direction.x = 1;
-            direction.y = 0;
-            mouse.style.transform = 'rotate(90deg)';
-            break;
-        case 2: // Down
-            direction.x = 0;
-            direction.y = 1;
-            mouse.style.transform = 'rotate(180deg)';
-            break;
-        case 3: // Left
-            direction.x = -1;
-            direction.y = 0;
-            mouse.style.transform = 'rotate(270deg)';
-            break;
+function changeMiceDirection(mouse, direction, downwardBias) {
+    // Randomly choose a new direction with a bias towards moving downward
+    let newDirection = Math.random();
+    if (newDirection < downwardBias) {
+        // Move downward
+        direction.x = 0;
+        direction.y = 1;
+        mouse.style.transform = 'rotate(180deg)';
+    } else if (newDirection < (1 + downwardBias) / 2) {
+        // Move right
+        direction.x = 1;
+        direction.y = 0;
+        mouse.style.transform = 'rotate(90deg)';
+    } else {
+        // Move left
+        direction.x = -1;
+        direction.y = 0;
+        mouse.style.transform = 'rotate(270deg)';
     }
 }
 
